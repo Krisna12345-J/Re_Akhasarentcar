@@ -114,14 +114,12 @@ export default function BookingForm({ car, isOpen, onClose }: { car: Car, isOpen
       });
 
       if (!res.ok) throw new Error("Gagal menyimpan reservasi");
-      
-      // WA Integration
-      const waText = encodeURIComponent(`PROTOKOL RESERVASI AKHASA RENT CAR\n\nNama: ${user.name}\nWhatsApp: ${phone}\nUnit: ${car.name}\nKategori: ${car.category}\nDurasi: ${startDate} s/d ${endDate}\nTotal Estimasi: Rp ${totalPrice.toLocaleString('id-ID')}\n\nMohon validasi ketersediaan armada dan instruksi pembayaran lanjutan. Terima kasih.`);
-      window.open(`https://wa.me/6288211542209?text=${waText}`, '_blank');
+      const data = await res.json();
       
       onClose();
+      navigate(`/payment/${data.id}`);
     } catch (err) {
-      setError('Gagal memproses reservasi. Silakan hubungi admin via WhatsApp.');
+      setError('Gagal memproses reservasi. Silakan coba lagi.');
     } finally {
       setLoading(false);
     }
@@ -239,20 +237,20 @@ export default function BookingForm({ car, isOpen, onClose }: { car: Car, isOpen
 
                   <div className="space-y-6">
                     <p className="text-sm text-gray-500 leading-relaxed font-medium">
-                      Silakan klik tombol di bawah untuk mengirim data reservasi ke WhatsApp resmi Akhasa Rent Car guna tahap validasi dokumen (KTP/SIM/KK) dan pembayaran.
+                      Silakan pilih metode pembayaran di tahap selanjutnya. Anda dapat menggunakan Kartu Kredit, Virtual Account, atau konfirmasi manual via WhatsApp.
                     </p>
                     <div className="grid grid-cols-2 gap-4">
-                        <div className="px-4 py-3 bg-green-50 rounded-xl text-[8px] font-black text-green-600 uppercase tracking-widest text-center">Respon Cepat 24 Jam</div>
-                        <div className="px-4 py-3 bg-blue-50 rounded-xl text-[8px] font-black text-blue-600 uppercase tracking-widest text-center">Bantar Gebang Official</div>
+                        <div className="px-4 py-3 bg-green-50 rounded-xl text-[8px] font-black text-green-600 uppercase tracking-widest text-center">Aman & Terenkripsi</div>
+                        <div className="px-4 py-3 bg-blue-50 rounded-xl text-[8px] font-black text-blue-600 uppercase tracking-widest text-center">Konfirmasi Instan</div>
                     </div>
                   </div>
 
                   <button 
                     onClick={handleSubmit}
                     disabled={loading}
-                    className="w-full bg-[#25D366] text-white py-5 rounded-2xl text-[10px] font-black tracking-[0.2em] hover:bg-[#1DA851] transition-all flex items-center justify-center shadow-2xl shadow-green-100 uppercase"
+                    className="w-full bg-[#0A192F] text-white py-5 rounded-2xl text-[10px] font-black tracking-[0.2em] hover:bg-[#2563EB] transition-all flex items-center justify-center shadow-2xl shadow-navy-100 uppercase"
                   >
-                    KIRIM RESERVASI KE WHATSAPP
+                    LANJUT KE PEMBAYARAN
                   </button>
                 </div>
               )}

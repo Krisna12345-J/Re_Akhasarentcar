@@ -12,6 +12,7 @@ import WhatsAppButton from './components/WhatsAppButton';
 import Dashboard from './components/Dashboard';
 import Login from './components/auth/Login';
 import Register from './components/auth/Register';
+import PaymentPage from './components/PaymentPage';
 
 const FloatingAdminSwitch = () => {
   const { isAdmin } = useAuth();
@@ -132,6 +133,7 @@ export default function App() {
             <Route path="/" element={<LandingPage />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
+            <Route path="/payment/:bookingId" element={<PaymentPage />} />
             
             {/* Admin routes with Zero-Trust protection */}
             <Route path="/admin" element={
