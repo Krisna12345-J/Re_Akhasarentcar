@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { motion } from 'motion/react';
+import { BrowserRouter as Router, Routes, Route, Navigate, Link, useLocation } from 'react-router-dom';
+import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from './lib/authContext';
+import { LayoutDashboard, Home } from 'lucide-react';
 import Navbar from './components/Navbar';
 import Hero from './components/Hero';
 import Pricelist from './components/Pricelist';
@@ -12,14 +13,55 @@ import Dashboard from './components/Dashboard';
 import Login from './components/auth/Login';
 import Register from './components/auth/Register';
 
+const FloatingAdminSwitch = () => {
+  const { isAdmin } = useAuth();
+  const location = useLocation();
+  const isAdminPage = location.pathname.startsWith('/admin');
+
+  if (!isAdmin) return null;
+
+  return (
+    <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[100]">
+      <motion.div 
+        initial={{ y: 100, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        className="bg-[#0A192F]/90 backdrop-blur-xl shadow-2xl rounded-full p-1.5 border border-white/10 flex items-center space-x-1"
+      >
+        <Link 
+          to="/"
+          className={`px-8 py-3 text-[10px] font-black tracking-[0.2em] rounded-full transition-all flex items-center ${
+            !isAdminPage 
+            ? 'bg-white text-[#0A192F] shadow-lg shadow-white/5' 
+            : 'text-gray-400 hover:text-white'
+          }`}
+        >
+          <Home className="w-3.5 h-3.5 mr-2" /> BERANDA
+        </Link>
+        <Link 
+          to="/admin"
+          className={`px-8 py-3 text-[10px] font-black tracking-[0.2em] rounded-full transition-all flex items-center ${
+            isAdminPage 
+            ? 'bg-[#2563EB] text-white shadow-lg shadow-blue-500/20' 
+            : 'text-gray-400 hover:text-white'
+          }`}
+        >
+          <LayoutDashboard className="w-3.5 h-3.5 mr-2" /> ADMIN
+        </Link>
+      </motion.div>
+    </div>
+  );
+};
+
 export default function App() {
   const { profile, isAdmin, loading } = useAuth();
-  const [showAdmin, setShowAdmin] = useState(false);
-
+  
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-white font-black text-[#0A192F] tracking-tighter text-xl">
-        AKHASA RENT CAR...
+      <div className="min-h-screen flex items-center justify-center bg-white font-black text-[#0A192F] tracking-tighter text-xl text-center p-8">
+        <div className="flex flex-col items-center">
+          <div className="w-12 h-12 border-4 border-[#0A192F] border-t-[#2563EB] rounded-full animate-spin mb-4"></div>
+          AKHASA RENT CAR...
+        </div>
       </div>
     );
   }
@@ -85,41 +127,22 @@ export default function App() {
   return (
     <Router>
       <div className="font-sans antialiased bg-white text-[#0A192F]">
-        {/* Admin Toggle - Only visible if isAdmin is true */}
-        {isAdmin && (
-          <div className="fixed top-20 right-4 z-[60] bg-white shadow-xl rounded-full p-1 border border-gray-100 hidden md:flex">
-            <button 
-              onClick={() => setShowAdmin(false)}
-              className={`px-4 py-1 text-[10px] font-bold tracking-widest rounded-full transition-all ${!showAdmin ? 'bg-[#0A192F] text-white' : 'text-gray-400'}`}
-            >
-              BERANDA
-            </button>
-            <button 
-              onClick={() => {
-                setShowAdmin(true);
-                // navigate('/admin'); would be better if we could use it here, but we'll stick to state for the switch
-              }}
-              className={`px-4 py-1 text-[10px] font-bold tracking-widest rounded-full transition-all ${showAdmin ? 'bg-[#2563EB] text-white' : 'text-gray-400'}`}
-            >
-              PANEL ADMIN
-            </button>
-          </div>
-        )}
-
         <main>
           <Routes>
-            <Route path="/" element={
-              (showAdmin && isAdmin) ? <Dashboard /> : <LandingPage />
-            } />
+            <Route path="/" element={<LandingPage />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             
-            {/* Admin routes with explicit protection */}
+            {/* Admin routes with Zero-Trust protection */}
+            <Route path="/admin" element={
+              isAdmin ? <Dashboard /> : <Navigate to="/" replace />
+            } />
             <Route path="/admin/*" element={
-              isAdmin ? <Dashboard /> : <Navigate to="/" />
+              isAdmin ? <Dashboard /> : <Navigate to="/" replace />
             } />
           </Routes>
         </main>
+        <FloatingAdminSwitch />
       </div>
     </Router>
   );

@@ -87,7 +87,7 @@ export default function Navbar() {
                     {user.email?.[0].toUpperCase()}
                   </div>
                   <span className="text-[10px] font-bold text-[#0A192F] uppercase tracking-widest">
-                    {profile?.name || 'USER'}
+                    {profile?.name || 'PENGGUNA'}
                   </span>
                   <ChevronDown className={`w-3 h-3 text-gray-400 transition-transform ${isProfileOpen ? 'rotate-180' : ''}`} />
                 </button>
@@ -108,13 +108,13 @@ export default function Navbar() {
                         {isAdmin && (
                           <Link 
                             to="/admin" 
-                            className="flex items-center px-4 py-3 text-[10px] font-bold text-gray-500 hover:text-[#2563EB] hover:bg-blue-50 rounded-xl transition-all uppercase tracking-widest"
+                            className="flex items-center px-4 py-3 text-[10px] font-bold text-[#2563EB] hover:bg-blue-50 rounded-xl transition-all uppercase tracking-widest"
                           >
-                            <LayoutDashboard className="w-4 h-4 mr-3" /> Panel Kendali
+                            <LayoutDashboard className="w-4 h-4 mr-3" /> Panel Kendali Admin
                           </Link>
                         )}
                         <button className="w-full flex items-center px-4 py-3 text-[10px] font-bold text-gray-500 hover:text-[#0A192F] hover:bg-gray-50 rounded-xl transition-all uppercase tracking-widest">
-                          <Settings className="w-4 h-4 mr-3" /> Pengaturan
+                          <Settings className="w-4 h-4 mr-3" /> Pengaturan Profil
                         </button>
                         <button 
                           onClick={handleLogout}
@@ -130,7 +130,7 @@ export default function Navbar() {
             ) : (
               <>
                 <Link to="/login" className="text-[10px] font-bold text-gray-500 hover:text-[#0A192F] tracking-widest uppercase">
-                  Masuk
+                  Masuk Sistem
                 </Link>
                 <Link 
                   to="/register" 

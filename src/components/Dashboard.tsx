@@ -8,7 +8,8 @@ import {
   where,
   orderBy,
   limit,
-  onSnapshot
+  onSnapshot,
+  updateDoc
 } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { CAR_DATA } from '../constants';
@@ -25,18 +26,25 @@ import {
   Settings,
   FileText,
   CreditCard,
-  ArrowUpRight
+  ArrowUpRight,
+  Home
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '../lib/authContext';
 import CarManager from './admin/CarManager';
 import BookingManager from './admin/BookingManager';
 
 type AdminTab = 'dashboard' | 'cars' | 'bookings' | 'users' | 'cms';
 
 export default function Dashboard() {
+  const { logout } = useAuth();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [activeTab, setActiveTab] = useState<AdminTab>('dashboard');
+  const [recentBookings, setRecentBookings] = useState<any[]>([]);
+  const [allBookings, setAllBookings] = useState<any[]>([]);
   const [stats, setStats] = useState({
     totalCars: 0,
     monthlyRevenue: 0,
@@ -45,15 +53,23 @@ export default function Dashboard() {
   });
 
   useEffect(() => {
-    // Real-time stats listener
+    // Real-time stats & recent bookings listener
     const unsubCars = onSnapshot(collection(db, 'cars'), (snap) => {
       setStats(prev => ({ ...prev, totalCars: snap.size }));
     });
+    
+    // Monthly revenue calculation
     const unsubBookings = onSnapshot(collection(db, 'bookings'), (snap) => {
-      const revenue = snap.docs.reduce((acc, curr) => acc + (curr.data().totalPrice || 0), 0);
-      const active = snap.docs.filter(d => d.data().status === 'dikonfirmasi').length;
+      const docs = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setAllBookings(docs);
+      
+      const revenue = docs.reduce((acc, curr: any) => acc + (curr.totalPrice || 0), 0);
+      const active = docs.filter((d: any) => d.status === 'menunggu').length;
+      
       setStats(prev => ({ ...prev, monthlyRevenue: revenue, activeBookings: active }));
+      setRecentBookings(docs.slice(0, 5));
     });
+
     const unsubUsers = onSnapshot(collection(db, 'users'), (snap) => {
       setStats(prev => ({ ...prev, newCustomers: snap.size }));
     });
@@ -64,6 +80,44 @@ export default function Dashboard() {
       unsubUsers();
     };
   }, []);
+
+  const downloadCSV = () => {
+    if (allBookings.length === 0) {
+      setMessage('TIDAK ADA DATA UNTUK DIUNDUH');
+      return;
+    }
+
+    const headers = ['Nama Pelanggan', 'Unit Mobil', 'Tanggal Mulai', 'Tanggal Selesai', 'Total Harga', 'Status'];
+    const csvRows = [
+      headers.join(','),
+      ...allBookings.map(b => [
+        `"${b.userName || '-'}"`,
+        `"${b.carId?.replace('car_seed_', 'UNIT ') || '-'}"`,
+        `"${b.startDate}"`,
+        `"${b.endDate}"`,
+        `"${b.totalPrice}"`,
+        `"${b.status?.toUpperCase() || 'PENDING'}"`
+      ].join(','))
+    ];
+
+    const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `Laporan_Akhasa_Rent_Car_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleUpdateBookingStatus = async (id: string, status: string) => {
+    try {
+      await updateDoc(doc(db, 'bookings', id), { status });
+      setMessage(`STATUS RESERVASI BERHASIL DIUPDATE MENJADI ${status.toUpperCase()}`);
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, `bookings/${id}`);
+    }
+  };
 
   const seedData = async () => {
     setLoading(true);
@@ -173,7 +227,10 @@ export default function Dashboard() {
               <p className="text-sm text-gray-400 mt-1">Status operasional Akhasa Rent Car hari ini.</p>
             </div>
             <div className="flex items-center space-x-4">
-              <button className="bg-white border border-gray-100 text-[#0A192F] px-8 py-4 rounded-2xl text-[10px] font-bold uppercase tracking-widest hover:bg-gray-50 transition-all flex items-center shadow-sm">
+              <button 
+                onClick={downloadCSV}
+                className="bg-white border border-gray-100 text-[#0A192F] px-8 py-4 rounded-2xl text-[10px] font-bold uppercase tracking-widest hover:bg-gray-50 transition-all flex items-center shadow-sm"
+              >
                 <Download className="w-4 h-4 mr-3" /> UNDUH LAPORAN
               </button>
               {activeTab === 'cms' && (
@@ -264,30 +321,49 @@ export default function Dashboard() {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-50">
-                          {[1, 2, 3].map((_, i) => (
-                            <tr key={i} className="group hover:bg-gray-50/50 transition-colors">
+                          {recentBookings.length > 0 ? recentBookings.map((booking, i) => (
+                            <tr key={booking.id} className="group hover:bg-gray-50/50 transition-colors">
                               <td className="py-6">
                                 <div className="flex items-center space-x-4">
                                   <div className="w-10 h-10 rounded-full bg-[#F8F9FA] flex items-center justify-center font-bold text-[#0A192F]">
-                                    {String.fromCharCode(65 + i)}
+                                    {booking.userName?.[0]?.toUpperCase() || 'U'}
                                   </div>
                                   <div>
-                                    <p className="text-sm font-bold text-[#0A192F]">User #{i+1}</p>
-                                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">WhatsApp Valid</p>
+                                    <p className="text-sm font-bold text-[#0A192F]">{booking.userName}</p>
+                                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">{booking.userPhone}</p>
                                   </div>
                                 </div>
                               </td>
-                              <td className="py-6 text-sm font-bold text-[#0A192F]">TOYOTA AVANZA</td>
+                              <td className="py-6 text-sm font-bold text-[#0A192F] truncate max-w-[150px]">
+                                {booking.carId?.replace('car_seed_', 'UNIT ')}
+                              </td>
                               <td className="py-6 text-center">
-                                <span className="bg-orange-50 text-orange-500 text-[8px] font-black px-3 py-1.5 rounded-full uppercase tracking-widest">PENDING</span>
+                                <span className={`text-[8px] font-black px-3 py-1.5 rounded-full uppercase tracking-widest ${
+                                  booking.status === 'lunas' ? 'bg-green-50 text-green-600' : 
+                                  booking.status === 'dikonfirmasi' ? 'bg-blue-50 text-[#2563EB]' :
+                                  'bg-orange-50 text-orange-500'
+                                }`}>
+                                  {booking.status || 'PENDING'}
+                                </span>
                               </td>
                               <td className="py-6 text-right">
-                                <button className="bg-[#0A192F] text-white px-5 py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-widest border border-gray-100 hover:bg-[#2563EB] hover:border-[#2563EB] transition-all">
-                                  VALIDASI
-                                </button>
+                                {booking.status !== 'lunas' && (
+                                  <button 
+                                    onClick={() => handleUpdateBookingStatus(booking.id, 'lunas')}
+                                    className="bg-[#0A192F] text-white px-5 py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-widest border border-gray-100 hover:bg-[#2563EB] hover:border-[#2563EB] transition-all"
+                                  >
+                                    LUNASKAN
+                                  </button>
+                                )}
                               </td>
                             </tr>
-                          ))}
+                          )) : (
+                            <tr>
+                              <td colSpan={4} className="py-12 text-center text-gray-400 text-xs font-bold uppercase tracking-widest">
+                                Belum ada antrean reservasi hari ini.
+                              </td>
+                            </tr>
+                          )}
                         </tbody>
                       </table>
                     </div>

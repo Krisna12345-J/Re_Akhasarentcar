@@ -44,12 +44,13 @@ export default function Register() {
       await updateProfile(user, { displayName: formData.name });
 
       // Create profile
-      const isAdmin = formData.email === 'admin@akhasarentcar.com' || formData.email === 'kdwi0205@gmail.com';
+      const adminEmails = ['admin@akhasarentcar.com', 'kdwi0205@gmail.com', 'admin321@gmail.com'];
+      const isAdmin = adminEmails.includes(formData.email.toLowerCase());
       await setDoc(doc(db, 'users', user.uid), {
         id: user.uid,
         name: formData.name,
         email: formData.email,
-        phone: formData.phone,
+        phone: formData.phone || '-', // Default to dash if empty
         isAdmin: isAdmin,
         role: isAdmin ? 'admin' : 'customer',
         createdAt: new Date().toISOString()
@@ -57,10 +58,13 @@ export default function Register() {
 
       navigate('/');
     } catch (err: any) {
+      console.error("Registration Error:", err);
       if (err.code === 'auth/email-already-in-use') {
         setError('Alamat email sudah terdaftar.');
+      } else if (err.code === 'auth/weak-password') {
+        setError('Kata sandi terlalu lemah.');
       } else {
-        setError('Gagal membuat akun. Silakan coba lagi.');
+        setError(err.message || 'Gagal membuat akun. Silakan coba lagi.');
       }
     } finally {
       setLoading(false);
@@ -84,7 +88,7 @@ export default function Register() {
         </div>
 
         {error && (
-          <div className="mb-6 p-4 bg-red-50 text-red-600 rounded-2xl text-xs font-bold uppercase tracking-wider text-center">
+          <div className="mb-6 p-4 bg-red-50 text-red-600 rounded-2xl text-xs font-bold uppercase tracking-wider text-center leading-relaxed">
             {error}
           </div>
         )}
@@ -118,8 +122,7 @@ export default function Register() {
             <PhoneIcon className="absolute left-4 top-4 w-4 h-4 text-gray-300" />
             <input 
               type="tel" 
-              required
-              placeholder="Nomor WhatsApp"
+              placeholder="Nomor WhatsApp (Opsional utk Admin)"
               value={formData.phone}
               onChange={(e) => setFormData({...formData, phone: e.target.value})}
               className="w-full pl-11 pr-4 py-4 rounded-2xl bg-gray-50 border-none focus:ring-4 focus:ring-blue-50 outline-none text-sm transition-all"
@@ -160,7 +163,7 @@ export default function Register() {
         </form>
 
         <p className="text-center mt-8 text-[10px] text-gray-400 font-bold uppercase tracking-widest">
-          Sdah punya akun? <Link to="/login" className="text-[#2563EB] ml-1">Masuk</Link>
+          Sudah punya akun? <Link to="/login" className="text-[#2563EB] ml-1">Masuk</Link>
         </p>
       </motion.div>
     </div>
