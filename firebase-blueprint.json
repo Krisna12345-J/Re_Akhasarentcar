@@ -1,0 +1,67 @@
+{
+  "entities": {
+    "Car": {
+      "title": "Armada",
+      "description": "Data mobil yang tersedia untuk dirental",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "category": { "type": "string", "enum": ["5 Seater", "7 Seater"] },
+        "price": { "type": "number" },
+        "transmission": { "type": "string", "enum": ["AT", "MT"] },
+        "status": { "type": "string", "enum": ["tersedia", "disewa", "perbaikan"] },
+        "image": { "type": "string" },
+        "isDriverIncluded": { "type": "boolean" }
+      },
+      "required": ["name", "category", "price", "transmission", "status"]
+    },
+    "Booking": {
+      "title": "Reservasi",
+      "description": "Data penyewaan mobil oleh pelanggan",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "carId": { "type": "string" },
+        "carName": { "type": "string" },
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "userPhone": { "type": "string" },
+        "startDate": { "type": "string", "format": "date-time" },
+        "endDate": { "type": "string", "format": "date-time" },
+        "totalPrice": { "type": "number" },
+        "status": { "type": "string", "enum": ["menunggu", "dikonfirmasi", "selesai", "dibatalkan"] },
+        "paymentProof": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["carId", "userId", "startDate", "endDate", "totalPrice", "status"]
+    },
+    "User": {
+      "title": "Pengguna",
+      "description": "Data profil pengguna dan admin",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "phone": { "type": "string" },
+        "isAdmin": { "type": "boolean" }
+      },
+      "required": ["name", "email"]
+    }
+  },
+  "firestore": {
+    "/cars/{carId}": {
+      "schema": "Car",
+      "description": "Koleksi armada mobil"
+    },
+    "/bookings/{bookingId}": {
+      "schema": "Booking",
+      "description": "Koleksi reservasi penyewaan"
+    },
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Koleksi data pengguna"
+    }
+  }
+}
