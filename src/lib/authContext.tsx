@@ -1,15 +1,13 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { User, onAuthStateChanged, signOut } from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { auth, db, handleFirestoreError, OperationType } from './firebase';
 import { UserProfile } from '../types';
 
 interface AuthContextType {
-  user: User | null;
+  user: any | null;
   profile: UserProfile | null;
   loading: boolean;
   isAdmin: boolean;
   logout: () => Promise<void>;
+  login: (userData: any) => void;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -18,16 +16,22 @@ const AuthContext = createContext<AuthContextType>({
   loading: true,
   isAdmin: false,
   logout: async () => {},
+  login: () => {},
 });
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<any | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const login = (userData: any) => {
+    setUser(userData);
+    setProfile(userData);
+  };
+
   const logout = async () => {
     try {
-      await signOut(auth);
+      await fetch('/api/auth/logout', { method: 'POST' });
       setUser(null);
       setProfile(null);
     } catch (error) {
@@ -36,47 +40,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      setLoading(true);
-      setUser(firebaseUser);
-      
-      if (firebaseUser) {
-        try {
-          const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
-          if (userDoc.exists()) {
-            setProfile(userDoc.data() as UserProfile);
-          } else {
-            // Seeder Admin Otomatis jika email cocok
-            const adminEmails = ['admin@akhasarentcar.com', 'kdwi0205@gmail.com', 'admin321@gmail.com'];
-            const isAdmin = adminEmails.includes(firebaseUser.email || '');
-            
-            const newProfile: UserProfile = {
-              id: firebaseUser.uid,
-              name: firebaseUser.displayName || 'Pengguna Akhasa',
-              email: firebaseUser.email || '',
-              phone: '',
-              isAdmin: isAdmin,
-              role: isAdmin ? 'admin' : 'customer',
-              createdAt: new Date().toISOString()
-            };
-            await setDoc(doc(db, 'users', firebaseUser.uid), newProfile);
-            setProfile(newProfile);
-          }
-        } catch (error) {
-          handleFirestoreError(error, OperationType.GET, `users/${firebaseUser.uid}`);
+    const checkAuth = async () => {
+      try {
+        const res = await fetch('/api/auth/me');
+        if (res.ok) {
+          const data = await res.json();
+          setUser(data);
+          setProfile(data);
         }
-      } else {
-        setProfile(null);
+      } catch (err) {
+        console.error("Auth check failed", err);
+      } finally {
+        setLoading(false);
       }
-      
-      setLoading(false);
-    });
-
-    return () => unsubscribe();
+    };
+    checkAuth();
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, profile, loading, isAdmin: profile?.role === 'admin', logout }}>
+    <AuthContext.Provider value={{ user, profile, loading, isAdmin: profile?.role === 'admin', logout, login }}>
       {children}
     </AuthContext.Provider>
   );

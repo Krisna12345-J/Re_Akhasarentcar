@@ -1,17 +1,12 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { 
-  createUserWithEmailAndPassword, 
-  updateProfile,
-  auth,
-  db
-} from '../../lib/firebase';
-import { doc, setDoc } from 'firebase/firestore';
+import { useAuth } from '../../lib/authContext';
 import { motion } from 'motion/react';
 import { User, Mail, Lock, Phone as PhoneIcon, ArrowLeft } from 'lucide-react';
 
 export default function Register() {
   const navigate = useNavigate();
+  const { login } = useAuth();
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -38,34 +33,22 @@ export default function Register() {
 
     setLoading(true);
     try {
-      const userCredential = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
-      const user = userCredential.user;
-
-      await updateProfile(user, { displayName: formData.name });
-
-      // Create profile
-      const adminEmails = ['admin@akhasarentcar.com', 'kdwi0205@gmail.com', 'admin321@gmail.com'];
-      const isAdmin = adminEmails.includes(formData.email.toLowerCase());
-      await setDoc(doc(db, 'users', user.uid), {
-        id: user.uid,
-        name: formData.name,
-        email: formData.email,
-        phone: formData.phone || '-', // Default to dash if empty
-        isAdmin: isAdmin,
-        role: isAdmin ? 'admin' : 'customer',
-        createdAt: new Date().toISOString()
+      const res = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData)
       });
+      
+      const data = await res.json();
+      
+      if (!res.ok) {
+        throw new Error(data.error || 'Pendaftaran gagal');
+      }
 
+      login(data.user);
       navigate('/');
     } catch (err: any) {
-      console.error("Registration Error:", err);
-      if (err.code === 'auth/email-already-in-use') {
-        setError('Alamat email sudah terdaftar.');
-      } else if (err.code === 'auth/weak-password') {
-        setError('Kata sandi terlalu lemah.');
-      } else {
-        setError(err.message || 'Gagal membuat akun. Silakan coba lagi.');
-      }
+      setError(err.message || 'Gagal membuat akun. Silakan coba lagi.');
     } finally {
       setLoading(false);
     }
@@ -156,14 +139,14 @@ export default function Register() {
           <button 
             type="submit"
             disabled={loading}
-            className="w-full bg-[#0A192F] text-white py-4 rounded-2xl text-[10px] font-bold tracking-widest uppercase hover:bg-[#2563EB] transition-all shadow-xl shadow-navy-scale disabled:opacity-50"
+            className="w-full bg-[#0A192F] text-white py-4 rounded-2xl text-[10px] font-bold tracking-widest uppercase hover:bg-[#2563EB] transition-all shadow-xl disabled:opacity-50"
           >
             {loading ? 'MEMPROSES...' : 'DAFTAR SEKARANG'}
           </button>
         </form>
 
         <p className="text-center mt-8 text-[10px] text-gray-400 font-bold uppercase tracking-widest">
-          Sudah punya akun? <Link to="/login" className="text-[#2563EB] ml-1">Masuk</Link>
+          Sdah punya akun? <Link to="/login" className="text-[#2563EB] ml-1">Masuk</Link>
         </p>
       </motion.div>
     </div>

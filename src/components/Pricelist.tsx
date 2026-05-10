@@ -1,5 +1,4 @@
-import { useState } from 'react';
-import { CAR_DATA } from "../constants";
+import { useState, useEffect } from 'react';
 import { Car } from "../types";
 import BookingForm from './BookingForm';
 import { useAuth } from '../lib/authContext';
@@ -8,28 +7,26 @@ import LoginModal from './LoginModal';
 export default function Pricelist() {
   const [selectedCar, setSelectedCar] = useState<Car | null>(null);
   const [loginOpen, setLoginOpen] = useState(false);
+  const [cars, setCars] = useState<Car[]>([]);
   const { user } = useAuth();
+
+  useEffect(() => {
+    fetch('/api/cars')
+      .then(res => res.json())
+      .then(data => setCars(data))
+      .catch(err => console.error("Fetch cars error", err));
+  }, []);
 
   const categories = [
     { name: "5 Seater / 2 Baris", filter: "5 Seater" },
     { name: "7 Seater / 3 Baris", filter: "7 Seater" },
   ];
 
-  const handleBooking = (carPartial: Partial<Car>) => {
+  const handleBooking = (car: Car) => {
     if (!user) {
       setLoginOpen(true);
       return;
     }
-    // Convert partial to complete for the form (mocking ID)
-    const car: Car = {
-      id: carPartial.name || 'temp',
-      name: carPartial.name || 'Unknown',
-      category: carPartial.category || '5 Seater',
-      price: carPartial.price || 0,
-      transmission: carPartial.transmission || 'AT',
-      status: 'tersedia',
-      isDriverIncluded: carPartial.isDriverIncluded
-    };
     setSelectedCar(car);
   };
 
@@ -60,8 +57,8 @@ export default function Pricelist() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {CAR_DATA.filter(car => car.category === cat.filter).map((car, i) => (
-                      <tr key={i} className="hover:bg-gray-50 transition-colors">
+                    {cars.filter(car => car.category === cat.filter).map((car) => (
+                      <tr key={car.id} className="hover:bg-gray-50 transition-colors">
                         <td className="px-6 py-5">
                           <span className="text-[#0A192F] font-medium">{car.name}</span>
                         </td>

@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react';
-import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
-import { collection, addDoc, query, where, getDocs, Timestamp } from 'firebase/firestore';
 import { Car, Booking } from '../types';
 import { Calendar, Phone, CreditCard, ChevronRight, X, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../lib/authContext';
 
 export default function BookingForm({ car, isOpen, onClose }: { car: Car, isOpen: boolean, onClose: () => void }) {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -29,33 +29,30 @@ export default function BookingForm({ car, isOpen, onClose }: { car: Car, isOpen
   }, [startDate, endDate, car.price]);
 
   const checkAvailability = async (carId: string, start: string, end: string) => {
-    const bookingsRef = collection(db, 'bookings');
-    // Simplified logic: fine any confirmed booking that overlaps
-    // In real scenario, more complex query needed, but for now we look for any
-    const q = query(
-      bookingsRef, 
-      where('carId', '==', carId),
-      where('status', 'in', ['dikonfirmasi', 'menunggu'])
-    );
-    
-    const querySnapshot = await getDocs(q);
-    const newStart = new Date(start).getTime();
-    const newEnd = new Date(end).getTime();
-
-    const isOverlap = querySnapshot.docs.some(doc => {
-      const b = doc.data();
-      const bStart = new Date(b.startDate).getTime();
-      const bEnd = new Date(b.endDate).getTime();
+    try {
+      const res = await fetch('/api/bookings');
+      if (!res.ok) return true;
       
-      // Check if new range overlaps with existing range
-      return (newStart < bEnd && newEnd > bStart);
-    });
+      const bookings: any[] = await res.json();
+      const carBookings = bookings.filter(b => b.carId === carId && (b.status === 'dikonfirmasi' || b.status === 'menunggu'));
+      
+      const newStart = new Date(start).getTime();
+      const newEnd = new Date(end).getTime();
 
-    return !isOverlap;
+      const isOverlap = carBookings.some(b => {
+        const bStart = new Date(b.startDate).getTime();
+        const bEnd = new Date(b.endDate).getTime();
+        return (newStart < bEnd && newEnd > bStart);
+      });
+
+      return !isOverlap;
+    } catch (err) {
+      return true; // Fallback to allow if error
+    }
   };
 
   const handleNext = async () => {
-    if (!auth.currentUser) {
+    if (!user) {
       navigate('/login');
       return;
     }
@@ -87,7 +84,6 @@ export default function BookingForm({ car, isOpen, onClose }: { car: Car, isOpen
           setError('Maaf, armada sudah dipesan pada tanggal tersebut. Silakan pilih tanggal lain.');
         }
       } catch (err) {
-        handleFirestoreError(err, OperationType.GET, 'bookings (check)');
         setError('Gagal mengecek ketersediaan armada.');
       } finally {
         setLoading(false);
@@ -96,33 +92,35 @@ export default function BookingForm({ car, isOpen, onClose }: { car: Car, isOpen
   };
 
   const handleSubmit = async () => {
-    if (!auth.currentUser) return;
+    if (!user) return;
     
     setLoading(true);
     setError('');
     try {
-      const bookingData: Partial<Booking> = {
+      const bookingData = {
         carId: car.id,
         carName: car.name,
-        userId: auth.currentUser.uid,
-        userName: auth.currentUser.displayName || 'Customer Akhasa',
+        userName: user.name,
         userPhone: phone,
         startDate,
         endDate,
         totalPrice,
-        status: 'menunggu',
-        createdAt: new Date().toISOString()
       };
       
-      await addDoc(collection(db, 'bookings'), bookingData);
+      const res = await fetch('/api/bookings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(bookingData)
+      });
+
+      if (!res.ok) throw new Error("Gagal menyimpan reservasi");
       
       // WA Integration
-      const waText = encodeURIComponent(`PROTOKOL RESERVASI AKHASA RENT CAR\n\nNama: ${auth.currentUser.displayName || 'Customer'}\nWhatsApp: ${phone}\nUnit: ${car.name}\nKategori: ${car.category}\nDurasi: ${startDate} s/d ${endDate}\nTotal Estimasi: Rp ${totalPrice.toLocaleString('id-ID')}\n\nMohon validasi ketersediaan armada dan instruksi pembayaran lanjutan. Terima kasih.`);
+      const waText = encodeURIComponent(`PROTOKOL RESERVASI AKHASA RENT CAR\n\nNama: ${user.name}\nWhatsApp: ${phone}\nUnit: ${car.name}\nKategori: ${car.category}\nDurasi: ${startDate} s/d ${endDate}\nTotal Estimasi: Rp ${totalPrice.toLocaleString('id-ID')}\n\nMohon validasi ketersediaan armada dan instruksi pembayaran lanjutan. Terima kasih.`);
       window.open(`https://wa.me/6288211542209?text=${waText}`, '_blank');
       
       onClose();
     } catch (err) {
-      handleFirestoreError(err, OperationType.WRITE, 'bookings');
       setError('Gagal memproses reservasi. Silakan hubungi admin via WhatsApp.');
     } finally {
       setLoading(false);

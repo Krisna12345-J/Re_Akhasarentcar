@@ -1,19 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  collection, 
-  getDocs, 
-  writeBatch, 
-  doc, 
-  query, 
-  where,
-  orderBy,
-  limit,
-  onSnapshot,
-  updateDoc
-} from 'firebase/firestore';
-import { db, handleFirestoreError, OperationType } from '../lib/firebase';
-import { CAR_DATA } from '../constants';
-import { 
   Database, 
   Download, 
   Car as CarIcon, 
@@ -52,33 +38,29 @@ export default function Dashboard() {
     newCustomers: 0
   });
 
+  const fetchData = async () => {
+    try {
+      const statsRes = await fetch('/api/admin/stats');
+      if (statsRes.ok) {
+        const statsData = await statsRes.json();
+        setStats(statsData);
+      }
+
+      const bookingsRes = await fetch('/api/bookings');
+      if (bookingsRes.ok) {
+        const bookingsData = await bookingsRes.json();
+        setAllBookings(bookingsData);
+        setRecentBookings(bookingsData.slice(0, 5));
+      }
+    } catch (err) {
+      console.error("Fetch stats error", err);
+    }
+  };
+
   useEffect(() => {
-    // Real-time stats & recent bookings listener
-    const unsubCars = onSnapshot(collection(db, 'cars'), (snap) => {
-      setStats(prev => ({ ...prev, totalCars: snap.size }));
-    });
-    
-    // Monthly revenue calculation
-    const unsubBookings = onSnapshot(collection(db, 'bookings'), (snap) => {
-      const docs = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setAllBookings(docs);
-      
-      const revenue = docs.reduce((acc, curr: any) => acc + (curr.totalPrice || 0), 0);
-      const active = docs.filter((d: any) => d.status === 'menunggu').length;
-      
-      setStats(prev => ({ ...prev, monthlyRevenue: revenue, activeBookings: active }));
-      setRecentBookings(docs.slice(0, 5));
-    });
-
-    const unsubUsers = onSnapshot(collection(db, 'users'), (snap) => {
-      setStats(prev => ({ ...prev, newCustomers: snap.size }));
-    });
-
-    return () => {
-      unsubCars();
-      unsubBookings();
-      unsubUsers();
-    };
+    fetchData();
+    const interval = setInterval(fetchData, 10000); // Poll every 10s
+    return () => clearInterval(interval);
   }, []);
 
   const downloadCSV = () => {
@@ -112,10 +94,17 @@ export default function Dashboard() {
 
   const handleUpdateBookingStatus = async (id: string, status: string) => {
     try {
-      await updateDoc(doc(db, 'bookings', id), { status });
-      setMessage(`STATUS RESERVASI BERHASIL DIUPDATE MENJADI ${status.toUpperCase()}`);
+      const res = await fetch(`/api/bookings/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status })
+      });
+      if (res.ok) {
+        setMessage(`STATUS RESERVASI BERHASIL DIUPDATE MENJADI ${status.toUpperCase()}`);
+        fetchData();
+      }
     } catch (err) {
-      handleFirestoreError(err, OperationType.UPDATE, `bookings/${id}`);
+      console.error("Update status error", err);
     }
   };
 
@@ -123,16 +112,13 @@ export default function Dashboard() {
     setLoading(true);
     setMessage('');
     try {
-      const batch = writeBatch(db);
-      CAR_DATA.forEach((car, index) => {
-        const carId = `car_seed_${index}`;
-        const carRef = doc(db, 'cars', carId);
-        batch.set(carRef, { ...car, id: carId, status: 'tersedia' });
-      });
-      await batch.commit();
-      setMessage('DATA ARMADA BERHASIL DISEMAI!');
+      const res = await fetch('/api/admin/seed', { method: 'POST' });
+      if (res.ok) {
+        setMessage('DATA ARMADA BERHASIL DISEMAI!');
+        fetchData();
+      }
     } catch (err) {
-      handleFirestoreError(err, OperationType.WRITE, 'cars (batch)');
+       console.error("Seed error", err);
     } finally {
       setLoading(false);
     }
@@ -168,7 +154,6 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-[#F8F9FA] flex">
-      {/* Sidebar */}
       <aside className="w-72 bg-white border-r border-gray-100 hidden lg:flex flex-col sticky top-0 h-screen">
         <div className="p-8 pb-4">
           <Link to="/" className="flex items-center space-x-2 mb-12">
@@ -217,13 +202,11 @@ export default function Dashboard() {
         </div>
       </aside>
 
-      {/* Main Content */}
       <main className="flex-1 p-8 lg:p-12 overflow-y-auto">
         <div className="max-w-7xl mx-auto">
-          {/* Top Bar */}
           <header className="flex flex-col md:flex-row md:items-center justify-between mb-12 space-y-6 md:space-y-0">
             <div>
-              <h1 className="text-4xl font-black text-[#0A192F] tracking-tighter uppercase">PNEL KENDALI</h1>
+              <h1 className="text-4xl font-black text-[#0A192F] tracking-tighter uppercase">PANEL KENDALI</h1>
               <p className="text-sm text-gray-400 mt-1">Status operasional Akhasa Rent Car hari ini.</p>
             </div>
             <div className="flex items-center space-x-4">
@@ -264,7 +247,6 @@ export default function Dashboard() {
                 exit={{ opacity: 0 }}
                 className="space-y-12"
               >
-                {/* Stat Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
                   <StatCard 
                     title="TOTAL ARMADA" 
@@ -287,21 +269,19 @@ export default function Dashboard() {
                     value={stats.activeBookings} 
                     icon={CalendarClock} 
                     color="bg-orange-50 text-orange-500"
-                    subtext="6 Menunggu konfirmasi"
+                    subtext="Menunggu konfirmasi"
                   />
                   <StatCard 
                     title="PELANGGAN BARU" 
                     value={stats.newCustomers} 
                     icon={Users} 
                     color="bg-purple-50 text-purple-600"
-                    change="+4 Hari ini"
+                    change="+Har ini"
                     subtext="Registrasi sistem otomatis"
                   />
                 </div>
 
-                {/* Main Bento Area */}
                 <div className="grid lg:grid-cols-3 gap-8 items-stretch">
-                  {/* Reservation Queue */}
                   <div className="lg:col-span-2 bg-white rounded-[3rem] shadow-sm border border-gray-50 p-10">
                     <div className="flex items-center justify-between mb-10">
                       <h3 className="text-xl font-bold text-[#0A192F] tracking-tight uppercase">ANTREAN RESERVASI</h3>
@@ -369,7 +349,6 @@ export default function Dashboard() {
                     </div>
                   </div>
 
-                  {/* Quick Actions / Status Aside */}
                   <div className="space-y-8">
                     <div className="bg-[#0A192F] p-10 rounded-[3rem] text-white shadow-2xl relative overflow-hidden h-full min-h-[400px]">
                       <div className="relative z-10 h-full flex flex-col">
@@ -385,32 +364,6 @@ export default function Dashboard() {
                                 initial={{ width: 0 }}
                                 animate={{ width: '70%' }}
                                 className="h-full bg-[#2563EB]"
-                              />
-                            </div>
-                          </div>
-                          <div className="space-y-2">
-                            <div className="flex justify-between items-center text-[10px] font-bold uppercase tracking-widest">
-                              <span className="opacity-60">Unit Disewa</span>
-                              <span>25%</span>
-                            </div>
-                            <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
-                              <motion.div 
-                                initial={{ width: 0 }}
-                                animate={{ width: '25%' }}
-                                className="h-full bg-green-400"
-                              />
-                            </div>
-                          </div>
-                          <div className="space-y-2">
-                            <div className="flex justify-between items-center text-[10px] font-bold uppercase tracking-widest">
-                              <span className="opacity-60">Unit Perbaikan</span>
-                              <span>5%</span>
-                            </div>
-                            <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
-                              <motion.div 
-                                initial={{ width: 0 }}
-                                animate={{ width: '5%' }}
-                                className="h-full bg-red-400"
                               />
                             </div>
                           </div>
@@ -446,11 +399,8 @@ export default function Dashboard() {
                 </div>
                 <h3 className="text-2xl font-black text-[#0A192F] uppercase tracking-tighter">DATA PELANGGAN</h3>
                 <p className="text-gray-400 max-w-sm mx-auto mt-4 text-sm leading-relaxed">
-                  Fitur integrasi CRM untuk manajemen profil WhatsApp dan riwayat sewa pelanggan sedang dalam sinkronisasi.
+                   Data pelanggan kini dikelola secara internal melalui database server lokal.
                 </p>
-                <button className="mt-10 text-[10px] font-bold text-[#2563EB] uppercase tracking-widest border-b border-[#2563EB] pb-1">
-                  LAPORAN PENGGUNA TERDAFTAR
-                </button>
               </motion.div>
             )}
 
@@ -478,27 +428,6 @@ export default function Dashboard() {
                     </div>
                   </div>
                 </div>
-                
-                <div className="bg-[#2563EB] p-12 rounded-[3.5rem] text-white shadow-2xl relative overflow-hidden">
-                  <div className="relative z-10">
-                    <h3 className="text-xl font-bold tracking-tight uppercase mb-8">PROTOKOL KEAMANAN</h3>
-                    <p className="text-sm opacity-80 leading-relaxed mb-10">
-                      Sistem menggunakan enkripsi Zero-Trust. Pastikan untuk selalu memantau aktivitas login mencurigakan.
-                    </p>
-                    <div className="flex items-center space-x-6">
-                      <div className="text-center">
-                        <p className="text-2xl font-black">2FA</p>
-                        <p className="text-[8px] font-black uppercase tracking-widest mt-1">AKTIF</p>
-                      </div>
-                      <div className="w-px h-10 bg-white/20"></div>
-                      <div className="text-center">
-                        <p className="text-2xl font-black">SSL</p>
-                        <p className="text-[8px] font-black uppercase tracking-widest mt-1">SECURE</p>
-                      </div>
-                    </div>
-                  </div>
-                  <Settings className="absolute -bottom-10 -right-10 w-64 h-64 opacity-10 animate-spin-slow" />
-                </div>
               </motion.div>
             )}
           </AnimatePresence>
@@ -507,6 +436,3 @@ export default function Dashboard() {
     </div>
   );
 }
-
-// Add styled Link for the brand in sidebar
-import { Link } from 'react-router-dom';

@@ -1,15 +1,12 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { 
-  signInWithEmailAndPassword,
-  signInWithGoogle,
-  auth
-} from '../../lib/firebase';
+import { useAuth } from '../../lib/authContext';
 import { motion } from 'motion/react';
 import { Mail, Lock, ArrowLeft, LogIn } from 'lucide-react';
 
 export default function Login() {
   const navigate = useNavigate();
+  const { login } = useAuth();
   const [formData, setFormData] = useState({
     email: '',
     password: ''
@@ -23,21 +20,24 @@ export default function Login() {
     setLoading(true);
 
     try {
-      await signInWithEmailAndPassword(auth, formData.email, formData.password);
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData)
+      });
+      
+      const data = await res.json();
+      
+      if (!res.ok) {
+        throw new Error(data.error || 'Login gagal');
+      }
+
+      login(data.user);
       navigate('/');
     } catch (err: any) {
-      setError('Email atau kata sandi salah.');
+      setError(err.message || 'Email atau kata sandi salah.');
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleGoogleLogin = async () => {
-    try {
-      await signInWithGoogle();
-      navigate('/');
-    } catch (err) {
-      console.error(err);
     }
   };
 
@@ -53,7 +53,7 @@ export default function Login() {
         </Link>
         
         <div className="text-center mb-10">
-          <h2 className="text-3xl font-black text-[#0A192F] tracking-tighter mb-2">MASUK AKUN</h2>
+          <h2 className="text-3xl font-black text-[#0A192F] tracking-tighter mb-2">MASUK SISTEM</h2>
           <p className="text-sm text-gray-400">Silakan masuk untuk akses penuh layanan kami.</p>
         </div>
 
@@ -100,23 +100,6 @@ export default function Login() {
             )}
           </button>
         </form>
-
-        <div className="relative my-8">
-          <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-gray-100"></div>
-          </div>
-          <div className="relative flex justify-center text-[10px] font-bold uppercase tracking-widest">
-            <span className="bg-white px-4 text-gray-300">Atau masuk dengan</span>
-          </div>
-        </div>
-
-        <button 
-          onClick={handleGoogleLogin}
-          className="w-full bg-white border border-gray-100 text-gray-600 py-4 rounded-2xl text-[10px] font-bold tracking-widest uppercase hover:bg-gray-50 transition-all flex items-center justify-center"
-        >
-          <img src="https://www.google.com/favicon.ico" className="w-4 h-4 mr-3" alt="Google" />
-          Google Account
-        </button>
 
         <p className="text-center mt-8 text-[10px] text-gray-400 font-bold uppercase tracking-widest">
           Belum punya akun? <Link to="/register" className="text-[#2563EB] ml-1">Daftar</Link>

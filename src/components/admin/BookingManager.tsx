@@ -1,13 +1,4 @@
 import { useState, useEffect } from 'react';
-import { 
-  collection, 
-  getDocs, 
-  updateDoc, 
-  doc, 
-  query, 
-  orderBy 
-} from 'firebase/firestore';
-import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
 import { Booking, BookingStatus } from '../../types';
 import { Check, X, Eye, Phone } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -24,12 +15,13 @@ export default function BookingManager() {
   const fetchBookings = async () => {
     setLoading(true);
     try {
-      const q = query(collection(db, 'bookings'), orderBy('createdAt', 'desc'));
-      const snapshot = await getDocs(q);
-      const bookingList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Booking));
-      setBookings(bookingList);
+      const res = await fetch('/api/bookings');
+      if (res.ok) {
+        const data = await res.json();
+        setBookings(data);
+      }
     } catch (error) {
-      handleFirestoreError(error, OperationType.GET, 'bookings');
+      console.error("Fetch bookings error", error);
     } finally {
       setLoading(false);
     }
@@ -37,11 +29,17 @@ export default function BookingManager() {
 
   const updateStatus = async (id: string, status: BookingStatus) => {
     try {
-      await updateDoc(doc(db, 'bookings', id), { status });
-      fetchBookings();
-      setSelectedBooking(null);
+      const res = await fetch(`/api/bookings/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status })
+      });
+      if (res.ok) {
+        fetchBookings();
+        setSelectedBooking(null);
+      }
     } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, `bookings/${id}`);
+      console.error("Update status error", error);
     }
   };
 
@@ -80,7 +78,7 @@ export default function BookingManager() {
                     </div>
                   </td>
                   <td className="px-6 py-4">
-                    <span className="text-xs font-medium text-gray-600">{booking.carName}</span>
+                    <span className="text-xs font-medium text-gray-600">{booking.carId?.replace('car_seed_', 'UNIT ')}</span>
                   </td>
                   <td className="px-6 py-4">
                     <div className="text-[10px] font-mono text-gray-400">
@@ -93,9 +91,10 @@ export default function BookingManager() {
                   </td>
                   <td className="px-6 py-4">
                     <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest ${
-                      booking.status === 'dikonfirmasi' ? 'bg-green-50 text-green-600' : 
-                      booking.status === 'menunggu' ? 'bg-orange-50 text-orange-600' : 
-                      booking.status === 'selesai' ? 'bg-blue-50 text-blue-600' : 'bg-red-50 text-red-600'
+                      booking.status === 'lunas' ? 'bg-green-50 text-green-600' : 
+                      booking.status === 'dikonfirmasi' ? 'bg-blue-50 text-[#2563EB]' : 
+                      booking.status === 'selesai' ? 'bg-blue-50 text-blue-600' : 
+                      booking.status === 'menunggu' ? 'bg-orange-50 text-orange-600' : 'bg-red-50 text-red-600'
                     }`}>
                       {booking.status}
                     </span>
@@ -133,7 +132,6 @@ export default function BookingManager() {
         </div>
       </div>
 
-      {/* Modal Detail */}
       <AnimatePresence>
         {selectedBooking && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
@@ -151,7 +149,7 @@ export default function BookingManager() {
               className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden"
             >
               <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-[#0A192F] text-white">
-                <h3 className="font-bold">Detail Reservasi #{selectedBooking.id.slice(0, 8)}</h3>
+                <h3 className="font-bold">Detail Reservasi #{selectedBooking.id?.slice(0, 8)}</h3>
                 <button onClick={() => setSelectedBooking(null)} className="text-white/50 hover:text-white">
                    <X className="w-5 h-5" />
                 </button>
@@ -159,7 +157,7 @@ export default function BookingManager() {
               <div className="p-8 space-y-6">
                 <div>
                   <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Informasi Unit</p>
-                  <p className="font-bold text-[#0A192F] text-lg">{selectedBooking.carName}</p>
+                  <p className="font-bold text-[#0A192F] text-lg">{selectedBooking.carName || selectedBooking.carId?.replace('car_seed_', 'UNIT ')}</p>
                 </div>
                 
                 <div className="grid grid-cols-2 gap-6">
@@ -179,23 +177,6 @@ export default function BookingManager() {
                     <p className="text-lg font-black text-[#2563EB]">Rp {selectedBooking.totalPrice.toLocaleString('id-ID')}</p>
                   </div>
                 </div>
-
-                {selectedBooking.paymentProof ? (
-                   <div>
-                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Bukti Transfer</p>
-                    <div className="w-full h-40 bg-gray-100 rounded-xl overflow-hidden border border-gray-100">
-                      <img 
-                        src={selectedBooking.paymentProof} 
-                        alt="Bukti Transfer" 
-                        className="w-full h-full object-contain"
-                      />
-                    </div>
-                  </div>
-                ) : (
-                  <div className="p-4 bg-orange-50 rounded-xl flex items-center text-orange-600">
-                    <p className="text-xs font-bold tracking-widest uppercase">Belum Unggah Bukti Transfer</p>
-                  </div>
-                )}
 
                 <div className="pt-6 flex justify-between space-x-3">
                   <button 
